@@ -1,5 +1,6 @@
 <?php
 namespace Arhframe\IocArt;
+
 use Symfony\Component\Yaml\Yaml;
 use Arhframe\Annotations\AnnotationsArhframe;
 use Arhframe\Yamlarh\Yamlarh;
@@ -22,28 +23,16 @@ class IocArt
         $this->pathinfoContext = pathinfo($context);
         $this->annotations = new AnnotationsArhframe();
         $this->importYml($context);
-        if(!defined("ROOT")){
+        if (!defined("ROOT")) {
             define("ROOT", $this->pathinfoContext['dirname']);
         }
-    }
-
-    public function loadContext()
-    {
-        $this->importBean();
-        $this->instanciateAll();
-    }
-
-    public function addBean($beanId, $beanConfig)
-    {
-        $this->bean[$beanId] = $beanConfig;
     }
 
     private function importYml($file, $loadedBy = null)
     {
         $fileOriginal = $file;
         $file = trim($file);
-        if(is_)
-        if ($file[0] != '/') {
+        if ($file[0] != '/' && $file[1] != ':') {
             $file = $this->pathinfoContext['dirname'] . '/' . $file;
         }
         if (!is_file($file)) {
@@ -77,6 +66,12 @@ class IocArt
 
     }
 
+    public function loadContext()
+    {
+        $this->importBean();
+        $this->instanciateAll();
+    }
+
     private function importBean()
     {
         if (empty($this->bean)) {
@@ -96,13 +91,6 @@ class IocArt
 
     }
 
-    public function removeBean($beanId)
-    {
-        unset($this->bean[$beanId]);
-        unset($this->object[$beanId]);
-        unset($this->required[$beanId]);
-    }
-
     private function instanciateAll()
     {
         if (empty($this->bean)) {
@@ -112,18 +100,6 @@ class IocArt
             $this->instanciator($bean, $id);
         }
         $this->verifyRequired();
-    }
-
-    private function herited($beanId, $beanIdExtend)
-    {
-        if (empty($this->bean[$beanIdExtend])) {
-            throw new IocArtException("Bean '" . $beanIdExtend . "' doesn't exist for extended bean '" . $beanId . "'");
-        }
-        unset($this->bean[$beanIdExtend]['type']);
-        unset($this->bean[$beanId]['extend']);
-        $this->bean[$beanId] = array_merge($this->bean[$beanId], $this->bean[$beanIdExtend]);
-
-        return $this->bean[$beanId];
     }
 
     private function instanciator($bean, $beanId)
@@ -164,6 +140,38 @@ class IocArt
 
     }
 
+    private function herited($beanId, $beanIdExtend)
+    {
+        if (empty($this->bean[$beanIdExtend])) {
+            throw new IocArtException("Bean '" . $beanIdExtend . "' doesn't exist for extended bean '" . $beanId . "'");
+        }
+        unset($this->bean[$beanIdExtend]['type']);
+        unset($this->bean[$beanId]['extend']);
+        $this->bean[$beanId] = array_merge($this->bean[$beanId], $this->bean[$beanIdExtend]);
+
+        return $this->bean[$beanId];
+    }
+
+    private function addAnnotationRequired($beanId, $className)
+    {
+
+        if (!class_exists($className) || !empty($this->required[$beanId])) {
+            return;
+        }
+
+        $class = new \ReflectionClass($className);
+        $methods = $class->getMethods(\ReflectionMethod::IS_PUBLIC);
+
+        foreach ($methods as $method) {
+            if (substr($method->name, 0, 3) == 'set') {
+                $result = $this->annotations->getAnnotationsObjects($className, $method->name);
+                if (!empty($result['Required'])) {
+                    $this->required[$beanId][$method->name] = false;
+                }
+            }
+        }
+    }
+
     private function inject($value, $beanId)
     {
         $contentBean = null;
@@ -185,50 +193,21 @@ class IocArt
         return $contentBean;
     }
 
-    private function injectPropertyFile($fileNames, $beanId)
+    private function injectBean($refs)
     {
         $array = array();
-        if (!is_array($fileNames)) {
-            $fileNames = array($fileNames);
+        if (!is_array($refs)) {
+            $refs = array($refs);
         }
-        foreach ($fileNames as $key => $fileName) {
-            if ($fileName[0] != '/') {
-                $fileName = $this->pathinfoContext['dirname'] . '/' . $fileName;
-            }else{
-                $fileName = ROOT .'/'. $fileName;
-            }
-            $file = $fileName;
-            $this->isFile($file, $beanId, $fileName);
-            $array[$key] = parse_ini_file($file);
-        }
-        return $array;
-    }
-
-    private function injectYaml($yamls, $beanId)
-    {
-        $array = array();
-        if (!is_array($yamls)) {
-            $yamls = array($yamls);
-        }
-        foreach ($yamls as $key => $yaml) {
-            if ($yaml[0] != '/') {
-                $yaml = $this->pathinfoContext['dirname'] . '/' . $yaml;
-            }else{
-                $yaml = ROOT .'/'. $yaml;
-            }
-            try {
-                $yamlArh = new Yamlarh($yaml);
-                $array[$key] = $yamlArh->parse();
-            } catch (Exception $e) {
-                throw new IocArtException("Error in bean '" . $beanId . "': " . $e->getMessage());
-            }
+        foreach ($refs as $key => $ref) {
+            $this->instanciator($this->bean[$ref], $ref);
+            $array[$key] = $this->object[$ref];
         }
         return $array;
     }
 
     private function injectStream($streams, $beanId)
     {
-        var_dump($streams);
         $array = array();
         if (!is_array($streams) || !empty($streams['resource'])) {
             $streams = array($streams);
@@ -249,15 +228,43 @@ class IocArt
         return $array;
     }
 
-    private function injectBean($refs)
+    private function injectYaml($yamls, $beanId)
     {
         $array = array();
-        if (!is_array($refs)) {
-            $refs = array($refs);
+        if (!is_array($yamls)) {
+            $yamls = array($yamls);
         }
-        foreach ($refs as $key => $ref) {
-            $this->instanciator($this->bean[$ref], $ref);
-            $array[$key] = $this->object[$ref];
+        foreach ($yamls as $key => $yaml) {
+            if ($yaml[0] != '/' && $yaml[1] != ':') {
+                $yaml = $this->pathinfoContext['dirname'] . '/' . $yaml;
+            } else {
+                $yaml = ROOT . '/' . $yaml;
+            }
+            try {
+                $yamlArh = new Yamlarh($yaml);
+                $array[$key] = $yamlArh->parse();
+            } catch (Exception $e) {
+                throw new IocArtException("Error in bean '" . $beanId . "': " . $e->getMessage());
+            }
+        }
+        return $array;
+    }
+
+    private function injectPropertyFile($fileNames, $beanId)
+    {
+        $array = array();
+        if (!is_array($fileNames)) {
+            $fileNames = array($fileNames);
+        }
+        foreach ($fileNames as $key => $fileName) {
+            if ($fileName[0] != '/' && $fileName[1] != ':') {
+                $fileName = $this->pathinfoContext['dirname'] . '/' . $fileName;
+            } else {
+                $fileName = ROOT . '/' . $fileName;
+            }
+            $file = $fileName;
+            $this->isFile($file, $beanId, $fileName);
+            $array[$key] = parse_ini_file($file);
         }
         return $array;
     }
@@ -266,23 +273,6 @@ class IocArt
     {
         if (!is_file($file)) {
             throw new IocArtException("Property file '" . $fileName . "' in bean '" . $beanId . "' doesn't exist.");
-        }
-    }
-
-    private function addAnnotationRequired($beanId, $className)
-    {
-        if (!class_exists($className) || !empty($this->required[$beanId])) {
-            return;
-        }
-        $class = new \ReflectionClass($className);
-        $methods = $class->getMethods(\ReflectionMethod::IS_PUBLIC);
-        foreach ($methods as $method) {
-            if (substr($method->name, 0, 3) == 'set') {
-                $result = $this->annotations->getAnnotationsObjects($className, $method->name);
-                if (!empty($result['Required'])) {
-                    $this->required[$beanId][$method->name] = false;
-                }
-            }
         }
     }
 
@@ -307,6 +297,18 @@ class IocArt
                 }
             }
         }
+    }
+
+    public function addBean($beanId, $beanConfig)
+    {
+        $this->bean[$beanId] = $beanConfig;
+    }
+
+    public function removeBean($beanId)
+    {
+        unset($this->bean[$beanId]);
+        unset($this->object[$beanId]);
+        unset($this->required[$beanId]);
     }
 
     public function getBean($beanId)
