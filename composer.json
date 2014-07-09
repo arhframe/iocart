@@ -14,7 +14,7 @@
     ],
     "require": {
         "arhframe/yamlarh": "1.1.*",
-        "arhframe/annotations": "0.2"
+        "arhframe/annotations": "0.*"
     },
     "autoload": {
         "psr-0": {
