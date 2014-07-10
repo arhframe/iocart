@@ -128,7 +128,9 @@ class IocArt
         foreach ($bean['property'] as $key => $value) {
             $contentBean = $this->inject($value, $beanId);
             if (count($contentBean) == 1 && is_array($contentBean)) {
-                $contentBean = current($contentBean);
+                if (is_numeric(key($contentBean))) {
+                    $contentBean = current($contentBean);
+                }
             }
             if (!empty($contentBean)) {
                 $makeSetter = "set" . ucfirst($key);
