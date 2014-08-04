@@ -28,11 +28,26 @@ class IocArt
         }
     }
 
+    private function isNotFileAbsolute($file)
+    {
+        $validBegginings = array('phar://', 'file://');
+        foreach ($validBegginings as $validBeggining) {
+            if (preg_match('#^' . preg_quote($validBeggining) . '.*#', $validBeggining)) {
+                return false;
+            }
+        }
+        if ($file[0] != '/' && $file[1] != ':') {
+            return true;
+        }
+
+        return false;
+    }
+
     private function importYml($file, $loadedBy = null)
     {
         $fileOriginal = $file;
         $file = trim($file);
-        if ($file[0] != '/' && $file[1] != ':') {
+        if ($this->isNotFileAbsolute($file)) {
             $file = $this->pathinfoContext['dirname'] . '/' . $file;
         }
         if (!is_file($file)) {
@@ -237,7 +252,7 @@ class IocArt
             $yamls = array($yamls);
         }
         foreach ($yamls as $key => $yaml) {
-            if ($yaml[0] != '/' && $yaml[1] != ':') {
+            if ($this->isNotFileAbsolute($yaml)) {
                 $yaml = $this->pathinfoContext['dirname'] . '/' . $yaml;
             } else {
                 $yaml = ROOT . '/' . $yaml;
@@ -259,7 +274,7 @@ class IocArt
             $fileNames = array($fileNames);
         }
         foreach ($fileNames as $key => $fileName) {
-            if ($fileName[0] != '/' && $fileName[1] != ':') {
+            if ($this->isNotFileAbsolute($fileName)) {
                 $fileName = $this->pathinfoContext['dirname'] . '/' . $fileName;
             } else {
                 $fileName = ROOT . '/' . $fileName;
