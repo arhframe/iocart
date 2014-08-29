@@ -149,21 +149,21 @@ class IocArt
             }
             if (!empty($contentBean)) {
                 $makeSetter = "set" . ucfirst($key);
-                try {
-                    $this->object[$beanId]->$makeSetter($contentBean);
-                } catch (\Exception $e) {
-                    if (stristr($e->getMessage(), 'must be of the type array') === FALSE) {
-                        throw new \Exception($e->getMessage());
-                    }
-                    $this->object[$beanId]->$makeSetter(array($contentBean));
-                }
+                $this->object[$beanId]->$makeSetter($contentBean);
                 $this->toggleRequired($beanId, $makeSetter);
             }
 
         }
 
     }
+    private function getContentBeanWhenArray(array $contentBean)
+    {
+        if (!is_numeric(key($contentBean))) {
+            return $contentBean;
+        }
+        return current($contentBean);
 
+    }
     private function herited($beanId, $beanIdExtend)
     {
         if (empty($this->bean[$beanIdExtend])) {
