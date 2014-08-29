@@ -144,7 +144,7 @@ class IocArt
             $contentBean = $this->inject($value, $beanId);
             if (count($contentBean) == 1 && is_array($contentBean)) {
                 if (is_numeric(key($contentBean))) {
-                    $contentBean = current($contentBean);
+                    $contentBean = $this->getContentBeanWhenArray($contentBean);
                 }
             }
             if (!empty($contentBean)) {
