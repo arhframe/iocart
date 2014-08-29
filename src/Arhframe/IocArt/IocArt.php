@@ -149,7 +149,14 @@ class IocArt
             }
             if (!empty($contentBean)) {
                 $makeSetter = "set" . ucfirst($key);
-                $this->object[$beanId]->$makeSetter($contentBean);
+                try {
+                    $this->object[$beanId]->$makeSetter($contentBean);
+                } catch (\Exception $e) {
+                    if (stristr($e->getMessage(), 'must be of the type array') === FALSE) {
+                        throw new \Exception($e->getMessage());
+                    }
+                    $this->object[$beanId]->$makeSetter(array($contentBean));
+                }
                 $this->toggleRequired($beanId, $makeSetter);
             }
 
